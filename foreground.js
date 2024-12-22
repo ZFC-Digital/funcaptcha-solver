@@ -52,16 +52,42 @@ async function getImageBlob() {
     let repeat = 0
     while ((!document.querySelector("#root .screen img") || !document.querySelector('#root .screen button.button')) && repeat < 10) {
         await new Promise(resolve => setTimeout(resolve, 1000))
+        repeat++
     }
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    if (document.querySelector('.match-game-alert')) return resolve(true)
+    if (document.querySelector('.match-game-alert')) return true
 
     if (!document.querySelector("#root .screen img") || !document.querySelector('#root .screen button.button')) return false
-    return window.getComputedStyle(document.querySelector("#root .screen img"))
-        .getPropertyValue('background-image')
-        .match(/url\(["']?(.*?)["']?\)/)
-        .filter(item => !item.includes("url") && item.includes("blob:"))[0]
+    
+    let attempts = 0;
+    let backgroundImage = '';
+    let matches = null;
+    let filteredUrls = null;
+    
+    while (attempts < 20) { // 20 deneme yapacak
+        backgroundImage = window.getComputedStyle(document.querySelector("#root .screen img"))
+            .getPropertyValue('background-image');
+            
+        if (backgroundImage && backgroundImage !== 'none') {
+            matches = backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+            
+            if (matches) {
+                filteredUrls = matches.filter(item => !item.includes("url") && item.includes("blob:"));
+                if (filteredUrls && filteredUrls.length > 0) {
+                    console.log("Blob URL found:", filteredUrls[0]);
+                    return filteredUrls[0];
+                }
+            }
+        }
+        
+        console.log(`Attempt ${attempts + 1}/20: Waiting for background image...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+    }
+    
+    console.log("Maximum attempts reached. Background image not found:", backgroundImage);
+    return false;
 }
 
 function createTask(base64Data, message) {
@@ -146,7 +172,15 @@ async function solveFuncaptcha() {
         }
         if (!blobData) whileStatus = false
         let base64Data = await blobToBase64(blobData)
-        let result = await detectClickedLengh(base64Data, document.querySelector('[role="text"]').textContent)
+        
+        const textElement = document.querySelector('[role="text"]');
+        if (!textElement) {
+            console.log("Text element not found, process might be completed");
+            whileStatus = false;
+            continue;
+        }
+        
+        let result = await detectClickedLengh(base64Data, textElement.textContent)
 
         if (document.querySelector('.match-game-alert')) {
             simulateUserClick(document.querySelector('#root .screen button.button'))
